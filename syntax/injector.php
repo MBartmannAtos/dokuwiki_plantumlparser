@@ -41,6 +41,12 @@ class syntax_plugin_plantumlparser_injector extends DokuWiki_Syntax_Plugin {
     public function handle($match, $state, $pos, Doku_Handler $handler)
     {
         $markup        = str_replace('</' . $this->TAG . '>', '', str_replace('<' . $this->TAG . '>', '', $match));
+        
+	// rewrite URL-Syntax: DokuWiki -> PlantUML
+        $markup        = preg_replace('/\[\[([^\| ]*) *\| *([\]]*)\]\]/', '[[${1} ${2}]]', $markup);
+        // rewrite internal URLs: add DokuWiki call
+        $markup        = preg_replace('/\[\[([^Hh][^Tt][^Tt][^Pp])/', '[[/doku.php?id=${1}', $markup);
+	    
         $plantUmlUrl   = trim($this->getConf('PlantUMLURL'));
 		if(!$plantUmlUrl)
 		{
