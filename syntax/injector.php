@@ -49,7 +49,7 @@ class syntax_plugin_plantumlparser_injector extends DokuWiki_Syntax_Plugin {
         // build URL-List in DokuWiki syntax for metadata (e.q. for backlinks)
         $dokuwiki_links = array();
         foreach ($all_dwlinks as $dwlink) {
-            if (preg_match('|^[^:]+//|', $dwlink[1])) {
+            if (preg_match('/^[^:]+:\/\//', $dwlink[1])) {
                 // external Link
                 $markup = str_replace($dwlink[0], "[[$dwlink[1] $dwlink[2]]]", $markup);
             } else {
