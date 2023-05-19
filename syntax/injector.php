@@ -41,22 +41,37 @@ class syntax_plugin_plantumlparser_injector extends DokuWiki_Syntax_Plugin {
     public function handle($match, $state, $pos, Doku_Handler $handler)
     {
         $markup        = str_replace('</' . $this->TAG . '>', '', str_replace('<' . $this->TAG . '>', '', $match));
-        
-	// rewrite URL-Syntax: DokuWiki -> PlantUML
-        $markup        = preg_replace('/\[\[([^\|]*)\|([^\]]*)\]\]/', '[[${1} ${2}]]', $markup);
+    
+        // search links in DokuWiki syntax
+        preg_match_all('/\[\[([^\|]*)\|([^\]]*)\]\]/m', $markup, $all_dwlinks, PREG_SET_ORDER);
 
-        // rewrite internal URLs: add DokuWiki call
-        $markup        = preg_replace('/\[\[([^Hh][^Tt][^Tt][^Pp])/', '[[/doku.php?id=${1}', $markup);
-	    
+        // rewrite URL-Syntax: DokuWiki -> PlantUML
+        // build URL-List in DokuWiki syntax for metadata (e.q. for backlinks)
+        $dokuwiki_links = array();
+        foreach ($all_dwlinks as $dwlink) {
+            if (preg_match('|^[^:]+//|', $dwlink[1])) {
+                // external Link
+                $markup = str_replace($dwlink[0], "[[$dwlink[1] $dwlink[2]]]", $markup);
+            } else {
+                // internal Link, add DokuWiki call
+                $markup = str_replace($dwlink[0], "[[/doku.php?id=$dwlink[1] $dwlink[2]]]", $markup);
+                $dokuwiki_links [] = [
+                        'page' => $dwlink[1],
+                        'title' => $dwlink[2],
+                ];
+            }
+        }
+        unset($dwlink);        // search links in DokuWiki syntax
+        
         $plantUmlUrl   = trim($this->getConf('PlantUMLURL'));
-		if(!$plantUmlUrl)
-		{
-			$plantUmlUrl = "https://www.plantuml.com/plantuml/";
-		}
-		else
-		{
-			$plantUmlUrl = trim($plantUmlUrl, '/') . '/';
-		}
+        if(!$plantUmlUrl)
+        {
+            $plantUmlUrl = "https://www.plantuml.com/plantuml/";
+        }
+        else
+        {
+            $plantUmlUrl = trim($plantUmlUrl, '/') . '/';
+        }
         $diagramObject = new PlantUmlDiagram($markup,$plantUmlUrl);
 
         return [
@@ -69,6 +84,7 @@ class syntax_plugin_plantumlparser_injector extends DokuWiki_Syntax_Plugin {
                 'png' => $diagramObject->getPNGDiagramUrl(),
                 'txt' => $diagramObject->getTXTDiagramUrl(),
             ],
+            'dokuwiki_links' => $dokuwiki_links,
         ];
     }
 
@@ -81,16 +97,23 @@ class syntax_plugin_plantumlparser_injector extends DokuWiki_Syntax_Plugin {
      * @return bool If rendering was successful.
      */
     public function render($mode, Doku_Renderer $renderer, $data) {
+        if($mode == 'metadata') {
+            foreach ($data['dokuwiki_links'] as $dwlink) {
+                $renderer->internallink($dwlink['page'], $dwlink['title']);
+            }
+            return true;
+        }
+
         if($mode != 'xhtml') return false;
 
         $renderer->doc .= "<div id='plant-uml-diagram-".$data['id']."'>";
         if(strlen($data['svg']) > 0) {
-			if(is_a($renderer,'renderer_plugin_dw2pdf') && (preg_match("/(@startlatex|@startmath|<math|<latex)/", $data['markup']))){
-				$renderer->doc .= "<img src='".$data['url']['png']."'>";
-			}
-			else {
-				$renderer->doc .= $data['svg'];
-			}
+            if(is_a($renderer,'renderer_plugin_dw2pdf') && (preg_match("/(@startlatex|@startmath|<math|<latex)/", $data['markup']))){
+                $renderer->doc .= "<img src='".$data['url']['png']."'>";
+            }
+            else {
+                $renderer->doc .= $data['svg'];
+            }
         } else {
             $renderer->doc .= "<object data='".$data['url']['svg']."' type='image/svg+xml'>";
             $renderer->doc .= "<span>".$data['markup']."</span>";
